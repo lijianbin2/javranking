@@ -271,7 +271,7 @@
      render();
      if(!stopFlag) autoDownloadTXT();
    }
-   $('#javr-min-go').onclick=()=>run(false); ["#javr-min-s","#javr-min-e","#javr-min-c","#javr-min-d"].forEach(function(sel){ const el=$(sel); if(el) el.addEventListener("keydown",function(ev){ if(ev.key==="Enter"){ ev.preventDefault(); run(false); } }); });
+   $('#javr-min-go').onclick=()=>run(false); ["#javr-min-s","#javr-min-e"].forEach(function(sel){ const el=$(sel); if(el) el.addEventListener("keydown",function(ev){ if(ev.key==="Enter"){ ev.preventDefault(); run(false); } }); });
    $('#javr-min-retry').onclick=()=>run(true);
    $('#javr-min-stop').onclick=()=>{ stopFlag=true; };
    $('#javr-min-clear').onclick=()=>{ results.clear(); render(); $('#javr-min-log').textContent=''; stat('已清空',0); };
