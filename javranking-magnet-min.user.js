@@ -7,6 +7,8 @@
  // @match        *://javranking.cc/*
  // @run-at       document-idle
  // @grant        none
+ // @downloadURL  https://raw.githubusercontent.com/lijianbin2/javranking/main/javranking-magnet-min.user.js
+ // @updateURL    https://raw.githubusercontent.com/lijianbin2/javranking/main/javranking-magnet-min.user.js
  // ==/UserScript==
  (function(){
  'use strict';
