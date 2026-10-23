@@ -1,7 +1,7 @@
 ﻿ // ==UserScript==
  // @name         JavRanking 全榜单通用 - 区间抓取字幕最小磁链(自动下载TXT)
  // @namespace    javranking.magnet.min
- // @version      1.1.2
+ // @version      1.1.3
  // @description  全站所有排行榜通用：在榜单页选排名区间，自动抓取每个作品详情页中字幕磁链里容量最小的一条，抓完自动下载TXT
  // @author       you
  // @match        *://javranking.cc/*
@@ -86,10 +86,26 @@
    }
    return Array.from(map.values()).sort((a,b)=>a.rank-b.rank);
  }
+   async function fetchWithRetry(url,tries){
+     tries=tries||3; let lastErr=null;
+     for(let i=0;i<tries;i++){
+       try{
+         const res=await fetch(url,{credentials:'same-origin',headers:{'Accept':'text/html'}});
+         if(!res.ok) throw new Error('HTTP '+res.status);
+         return await res.text();
+       }catch(err){
+         lastErr=err;
+         const m=String((err&&err.message)||err);
+         if(/HTTP (429|5\d\d)/.test(m)||/Failed to fetch|NetworkError|Load failed|network/i.test(m)){
+           if(i<tries-1){ await sleep(cfg.delay*(i+1)*2+Math.random()*300); continue; }
+         }
+         throw err;
+       }
+     }
+     throw lastErr;
+   }
  async function fetchSubMin(item){
-   const res=await fetch(item.url,{credentials:'same-origin',headers:{'Accept':'text/html'}});
-   if(!res.ok) throw new Error('HTTP '+res.status);
-   const html=await res.text();
+   const html=await fetchWithRetry(item.url,3);
    const doc=new DOMParser().parseFromString(html,'text/html');
    let nodes=Array.from(doc.querySelectorAll('.magnet-item'));
    const cands=[];
@@ -154,7 +170,7 @@
    st.textContent='#javr-min-panel{position:fixed;right:12px;top:70px;width:440px;max-width:94vw;max-height:86vh;display:flex;flex-direction:column;background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.22);z-index:999999;font-size:13px;color:#111827;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;overflow:hidden}#javr-min-head{background:#111827;color:#fff;padding:10px 12px;display:flex;align-items:center;gap:8px}#javr-min-head b{font-size:14px;flex:1}#javr-min-head button{background:rgba(255,255,255,.15);border:0;color:#fff;border-radius:6px;padding:2px 8px;cursor:pointer}#javr-min-body{padding:10px 12px;overflow:auto}#javr-min-body .row{display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap}#javr-min-body input[type=number]{width:70px;padding:5px 6px;border:1px solid #d1d5db;border-radius:6px}#javr-min-btns button{padding:6px 10px;border-radius:8px;border:1px solid #d1d5db;background:#f9fafb;cursor:pointer}#javr-min-btns button.primary{background:#111827;color:#fff;border-color:#111827}#javr-min-btns button:disabled{opacity:.5;cursor:not-allowed}#javr-min-prog{height:8px;background:#f3f4f6;border-radius:99px;overflow:hidden;margin:8px 0}#javr-min-bar{height:100%;width:0;background:#10b981}#javr-min-log{background:#0f172a;color:#d1fae5;font-size:11px;border-radius:8px;padding:8px;max-height:110px;overflow:auto;white-space:pre-wrap;margin-bottom:8px}#javr-min-table{width:100%;border-collapse:collapse;font-size:12px}#javr-min-table th,#javr-min-table td{border-bottom:1px solid #eee;padding:5px 4px;text-align:left;vertical-align:top}#javr-min-table td.m{font-family:ui-monospace,Consolas,monospace;word-break:break-all}#javr-min-table a{color:#2563eb;text-decoration:none}#javr-min-foot{color:#6b7280;font-size:11px;margin-top:6px}';
    document.head.appendChild(st);
    const p=document.createElement('div'); p.id='javr-min-panel';
-   p.innerHTML='<div id="javr-min-head"><b>榜单字幕最小磁链</b><button id="javr-min-hide" title="折叠/展开">—</button></div><div id="javr-min-body"><div class="row"><label>从 <input id="javr-min-s" type="number" min="1" value="'+cfg.start+'"></label><label>到 <input id="javr-min-e" type="number" min="1" value="'+cfg.end+'"></label><span id="javr-min-max" style="color:#6b7280"></span></div><div class="row"><label>并发 <input id="javr-min-c" type="number" min="1" max="6" value="'+cfg.conc+'" style="width:50px"></label><label>间隔ms <input id="javr-min-d" type="number" min="0" step="100" value="'+cfg.delay+'" style="width:64px"></label></div><div class="row" id="javr-min-btns"><button id="javr-min-go" class="primary">开始抓取</button><button id="javr-min-stop" disabled>停止</button><button id="javr-min-copy">复制全部磁链</button></div><div class="row" id="javr-min-btns2"><button id="javr-min-txt">手动再下一次TXT</button><button id="javr-min-retry">重试失败</button><button id="javr-min-clear">清空</button></div><div style="color:#059669;font-size:12px;margin-bottom:4px">固定逻辑：只取【字幕磁链中最小】，无字幕则回退全局最小并标注。抓完自动下载TXT。</div><div id="javr-min-prog"><div id="javr-min-bar"></div></div><div id="javr-min-stat" style="margin-bottom:6px;color:#374151">就绪</div><div id="javr-min-log"></div><table id="javr-min-table"><thead><tr><th style="width:36px">#</th><th>番号/标题</th><th style="width:70px">字幕最小</th><th>磁链</th></tr></thead><tbody id="javr-min-tb"><tr><td colspan="4" style="color:#9ca3af">暂无结果。输入排名区间后点 开始抓取。</td></tr></tbody></table><div id="javr-min-foot">适配：most-awarded-videos 与 /rankings/下所有榜单（DMM/JAVDB/JAVLibrary/TOP250/年度榜等）。解析 li[data-rank] + 详情页 .magnet-item / .magnet-tag--size。</div></div>';
+   p.innerHTML='<div id="javr-min-head"><b>榜单字幕最小磁链</b><button id="javr-min-hide" title="折叠/展开">—</button></div><div id="javr-min-body"><div class="row"><label>从 <input id="javr-min-s" type="number" min="1" value="'+cfg.start+'"></label><label>到 <input id="javr-min-e" type="number" min="1" value="'+cfg.end+'"></label><span id="javr-min-max" style="color:#6b7280"></span></div><div class="row"><label>并发 <input id="javr-min-c" type="number" min="1" max="6" value="'+cfg.conc+'" style="width:50px"></label><label>间隔ms <input id="javr-min-d" type="number" min="0" step="100" value="'+cfg.delay+'" style="width:64px"></label></div><div class="row" id="javr-min-btns"><button id="javr-min-go" class="primary">开始抓取</button><button id="javr-min-stop" disabled>停止</button><button id="javr-min-copy">复制全部磁链</button></div><div class="row" id="javr-min-btns2"><button id="javr-min-txt">手动再下一次TXT</button><button id="javr-min-retry">重试失败</button><button id="javr-min-clear">清空</button></div><div style="color:#059669;font-size:12px;margin-bottom:4px">固定逻辑：只取【字幕磁链中最小】，无字幕则回退全局最小并标注。抓完自动下载TXT。网络失败自动重试3次，遇限流自动加间隔，无需手动调。</div><div id="javr-min-prog"><div id="javr-min-bar"></div></div><div id="javr-min-stat" style="margin-bottom:6px;color:#374151">就绪</div><div id="javr-min-log"></div><table id="javr-min-table"><thead><tr><th style="width:36px">#</th><th>番号/标题</th><th style="width:70px">字幕最小</th><th>磁链</th></tr></thead><tbody id="javr-min-tb"><tr><td colspan="4" style="color:#9ca3af">暂无结果。输入排名区间后点 开始抓取。</td></tr></tbody></table><div id="javr-min-foot">适配：most-awarded-videos 与 /rankings/下所有榜单（DMM/JAVDB/JAVLibrary/TOP250/年度榜等）。解析 li[data-rank] + 详情页 .magnet-item / .magnet-tag--size。</div></div>';
    document.body.appendChild(p);
    const body=$('#javr-min-body');
    $('#javr-min-hide').onclick=()=>{ body.style.display=body.style.display==='none'?'':'none'; };
@@ -241,7 +257,7 @@
            const best=await fetchSubMin(it);
            results.set(it.rank,{rank:it.rank,code:it.code,title:it.title,url:it.url,magnet:best.magnet,sizeText:best.sizeText,sizeMB:best.sizeMB,mname:best.name,noSub:best.noSub,total:best.total,subCount:best.subCount});
            log('#'+it.rank+' '+it.code+' 字幕最小 '+best.sizeText+(best.noSub?' [无字幕回退]':'')+' '+best.name.slice(0,30));
-         }catch(err){ results.set(it.rank,{rank:it.rank,code:it.code,title:it.title,url:it.url,error:String(err.message||err).slice(0,80)}); log('#'+it.rank+' 失败:'+err.message); }
+         }catch(err){ results.set(it.rank,{rank:it.rank,code:it.code,title:it.title,url:it.url,error:String(err.message||err).slice(0,80)}); log('#'+it.rank+' 失败:'+err.message); if(/429|50\d|Failed to fetch|NetworkError|Load failed/i.test(String((err&&err.message)||''))){ cfg.delay=Math.min(cfg.delay+500,5000); const dEl=$('#javr-min-d'); if(dEl) dEl.value=cfg.delay; try{saveCfg();}catch(e2){} log('检测到限流/网络波动，间隔已自动上调到 '+cfg.delay+'ms，后续请求自动沿用'); } }
          done++; render(); stat('抓取中 '+done+'/'+total,done/total);
          if(cfg.delay) await sleep(cfg.delay);
        }
